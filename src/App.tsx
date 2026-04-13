@@ -1,32 +1,36 @@
-import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { User, Terminal as TerminalIcon, Cpu, Server, Box, Shield, Zap, Database, Wifi, Activity, Github, Linkedin, Mail, FileDown, Send } from 'lucide-react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+import { User, Terminal as TerminalIcon, Cpu, Server, Box, Zap, Database, Wifi, Activity, Github, Linkedin, FileDown } from 'lucide-react';
 
-import { LanguageContext, Language, Phase, Project } from './context/LanguageContext';
+import { LanguageContext, Language } from './context/LanguageContext';
 import { TRANSLATIONS } from './i18n/translations';
 
 import { NetworkBackground } from './components/NetworkBackground';
-import { SvgFrame } from './components/SvgFrame';
 import { MbLogo } from './components/MbLogo';
 import { Clock, NodeInfo, TerminalLogs, RightBarcode } from './components/HUD';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
-import { Typewriter } from './components/Typewriter';
 import { TerminalContact } from './components/TerminalContact';
 
-import mbLogo from './assets/mb-logo.svg';
 import scanlineOverlay from './assets/scanline-overlay.svg';
 import cornerTl from './assets/corner-tl.svg';
 import cornerTr from './assets/corner-tr.svg';
 import cornerBl from './assets/corner-bl.svg';
 import cornerBr from './assets/corner-br.svg';
-import barcodeBars from './assets/barcode-bars.svg';
 
-// --- MAIN APP ---
-
-// --- MAIN APP ---
+const SKILLS = [
+  { n: 'C/C++', i: Cpu, lvl: 90 },
+  { n: 'DOCKER', i: Server, lvl: 85 },
+  { n: 'RUST', i: Zap, lvl: 60 },
+  { n: 'BASH', i: TerminalIcon, lvl: 80 },
+  { n: 'REACT', i: Box, lvl: 75 },
+  { n: 'POSTGRES', i: Database, lvl: 70 },
+  { n: 'GO', i: Wifi, lvl: 65 },
+  { n: 'ASM', i: Activity, lvl: 50 },
+] as const;
 
 function AppContent() {
   const { t, lang } = useContext(LanguageContext);
+  const shouldReduceMotion = useReducedMotion();
   // States: 'idle', 'verified', 'system'
   const [systemState, setSystemState] = useState<'idle' | 'verified' | 'system'>('idle');
   const [progress, setProgress] = useState(0);
@@ -51,26 +55,71 @@ function AppContent() {
   }, []);
 
   const handleLogin = () => {
+    setProgress(0);
     setSystemState('verified');
   };
 
-  useEffect(() => {
-    if (systemState === 'verified') {
-      let p = 0;
-      const interval = setInterval(() => {
-        p += 2;
-        setProgress(p);
-        if (p >= 100) {
-          clearInterval(interval);
-          setTimeout(() => setSystemState('system'), 500);
-        }
-      }, 50);
-      return () => clearInterval(interval);
+  const handleDownloadCv = useCallback(async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    try {
+      const url = lang === 'fr' ? '/cv-fr.pdf' : '/cv-en.pdf';
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = lang === 'fr' ? 'cv-fr.pdf' : 'cv-en.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download failed', err);
     }
-  }, [systemState]);
+  }, [lang]);
+
+  useEffect(() => {
+    if (systemState !== 'verified') {
+      return;
+    }
+
+    if (shouldReduceMotion) {
+      setProgress(100);
+      const timeout = setTimeout(() => setSystemState('system'), 120);
+      return () => clearTimeout(timeout);
+    }
+
+    const durationMs = 2200;
+    let animationFrameId = 0;
+    let completeTimeout: ReturnType<typeof setTimeout> | undefined;
+    const start = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const ratio = Math.min(1, elapsed / durationMs);
+      // Ease-out to make the loading feel less mechanical.
+      const eased = 1 - (1 - ratio) * (1 - ratio);
+      setProgress(Math.round(eased * 100));
+
+      if (ratio < 1) {
+        animationFrameId = requestAnimationFrame(tick);
+      } else {
+        completeTimeout = setTimeout(() => setSystemState('system'), 280);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      if (completeTimeout) {
+        clearTimeout(completeTimeout);
+      }
+    };
+  }, [systemState, shouldReduceMotion]);
 
   return (
     <div className="min-h-screen bg-transparent text-white font-mono relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 z-[5] bg-[radial-gradient(circle_at_top_left,rgba(239,68,68,0.14),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.1),transparent_52%)]" />
       {hacked && (
         <div className="fixed inset-0 bg-red-600/40 z-[9999] pointer-events-none flex items-center justify-center mix-blend-color-burn animate-pulse">
           <h1 className="text-5xl md:text-9xl font-bold text-red-500 tracking-tighter animate-glitch-1">BREACH DETECTED</h1>
@@ -84,8 +133,8 @@ function AppContent() {
           <motion.div
             key="hud"
             initial={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
-            transition={{ duration: 0.8, ease: "easeInOut" }}
+            exit={{ opacity: 0, scale: shouldReduceMotion ? 1 : 1.05, filter: shouldReduceMotion ? 'none' : 'blur(10px)' }}
+            transition={{ duration: shouldReduceMotion ? 0.2 : 0.8, ease: 'easeInOut' }}
             className="absolute inset-0 pointer-events-none z-50"
           >
             <Clock />
@@ -115,6 +164,7 @@ function AppContent() {
                     <motion.h2 
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: shouldReduceMotion ? 0.15 : 0.35 }}
                       className="text-2xl tracking-[0.3em]"
                     >
                       {t.ui.identityVerified}
@@ -126,8 +176,8 @@ function AppContent() {
               {/* Main Panel (Logo -> ID Card) */}
               <motion.div 
                 layout
-                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                className={`relative overflow-hidden border ${systemState === 'idle' ? 'w-[180px] h-[60px] border-transparent mb-8' : 'w-[92vw] max-w-[32rem] min-h-[12rem] sm:h-56 border-white/20 bg-black/50 backdrop-blur-sm mb-8'}`}
+                transition={{ duration: shouldReduceMotion ? 0.15 : 0.8, ease: [0.16, 1, 0.3, 1] }}
+                className={`relative overflow-hidden border ${systemState === 'idle' ? 'w-[180px] h-[60px] border-transparent mb-8' : 'w-[92vw] max-w-[32rem] min-h-[12rem] sm:h-56 border-white/20 bg-black/55 backdrop-blur-md mb-8 rounded-md'}`}
               >
                 <AnimatePresence>
                   {systemState === 'idle' ? (
@@ -168,7 +218,7 @@ function AppContent() {
                         
                         <div className="my-auto">
                           <div className="text-[8px] sm:text-[10px] text-white/40 tracking-widest mb-1">{t.ui.fullName}</div>
-                          <motion.div layoutId="full-name" transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }} className="text-[clamp(0.9rem,4vw,1.25rem)] sm:text-xl tracking-[0.05em] sm:tracking-[0.2em] leading-none uppercase whitespace-nowrap">MOURTADA BOUIZAKARNE</motion.div>
+                          <motion.div layoutId="full-name" transition={{ duration: shouldReduceMotion ? 0.15 : 0.8, ease: [0.16, 1, 0.3, 1] }} className="text-[clamp(0.9rem,4vw,1.25rem)] sm:text-xl tracking-[0.05em] sm:tracking-[0.2em] leading-none uppercase break-words pr-2">MOURTADA BOUIZAKARNE</motion.div>
                         </div>
 
                         <div className="pt-3 border-t border-white/20 flex items-center justify-between">
@@ -199,7 +249,10 @@ function AppContent() {
                         />
                         
                         {/* Hacker Aesthetic Overlays */}
-                        <div className="absolute inset-0 bg-[url('/src/assets/scanline-overlay.svg')] opacity-50 mix-blend-overlay pointer-events-none z-20"></div>
+                        <div
+                          className="absolute inset-0 opacity-50 mix-blend-overlay pointer-events-none z-20"
+                          style={{ backgroundImage: `url(${scanlineOverlay})` }}
+                        ></div>
                         <div className="absolute inset-0 bg-gradient-to-tr from-red-500/20 to-cyan-500/20 mix-blend-color pointer-events-none z-20"></div>
                         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none bg-gradient-to-b from-transparent via-red-500/10 to-transparent animate-scan z-20"></div>
                       </motion.div>
@@ -211,7 +264,7 @@ function AppContent() {
               {/* Action Panel (Login Button -> Loading Bar) */}
               <motion.div 
                 layout
-                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                transition={{ duration: shouldReduceMotion ? 0.15 : 0.8, ease: [0.16, 1, 0.3, 1] }}
                 className={`relative ${systemState === 'idle' ? 'w-64 sm:w-80 h-14 border border-white/30 p-1' : 'w-[90vw] max-w-[500px] h-4'}`}
               >
                 <AnimatePresence>
@@ -227,8 +280,9 @@ function AppContent() {
                       <div className="absolute -top-3 left-2 bg-black px-1 text-[10px] text-white/60">NetPath::SYSTEM</div>
                       <div className="h-full flex items-center justify-center p-1">
                         <button 
+                          type="button"
                           onClick={handleLogin}
-                          className="w-full h-full bg-white text-black font-bold hover:bg-white/80 transition-colors"
+                          className="w-full h-full bg-white text-black font-bold hover:bg-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors"
                         >
                           {t.ui.login}
                         </button>
@@ -241,6 +295,11 @@ function AppContent() {
                       animate={{ opacity: 1 }}
                       transition={{ duration: 0.4, delay: 0.3 }}
                       className="absolute inset-0 flex gap-1"
+                      role="progressbar"
+                      aria-label={t.ui.enteringSystem}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={progress}
                     >
                       {[...Array(20)].map((_, i) => (
                         <div 
@@ -281,7 +340,7 @@ function AppContent() {
                 {/* HEADER */}
                 <header className="border-b border-white/20 pb-8 flex flex-col-reverse md:flex-row justify-between items-start gap-8 md:gap-12">
                   <div className="w-full md:w-2/3 flex flex-col">
-                    <motion.h1 layoutId="full-name" transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }} className="text-[clamp(1.2rem,4.5vw,3.5rem)] tracking-[0.05em] sm:tracking-[0.2em] mb-6 leading-none transition-all uppercase whitespace-nowrap">
+                    <motion.h1 layoutId="full-name" transition={{ duration: shouldReduceMotion ? 0.15 : 0.8, ease: [0.16, 1, 0.3, 1] }} className="text-[clamp(1.2rem,4.5vw,3.5rem)] tracking-[0.05em] sm:tracking-[0.2em] mb-6 leading-none transition-all uppercase break-words">
                       MOURTADA BOUIZAKARNE
                     </motion.h1>
                     
@@ -301,30 +360,14 @@ function AppContent() {
                         <Linkedin size={16} />
                         <span className="text-[10px] tracking-widest hidden sm:block">{t.ui.linkedin}</span>
                       </a>
-                      <button onClick={() => setIsContactOpen(true)} className="border border-white/20 bg-black/50 hover:border-red-500/50 hover:bg-red-500/10 text-white/60 hover:text-red-400 transition-all px-3 py-2 flex items-center gap-2">
+                      <button type="button" onClick={() => setIsContactOpen(true)} className="border border-white/20 bg-black/50 hover:border-red-500/50 hover:bg-red-500/10 text-white/60 hover:text-red-400 transition-all px-3 py-2 flex items-center gap-2">
                         <TerminalIcon size={16} />
                         <span className="text-[10px] tracking-widest hidden sm:block">CONTACT_ME.exe</span>
                       </button>
                       
                       <button 
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          try {
-                            const url = lang === 'fr' ? '/cv-fr.pdf' : '/cv-en.pdf';
-                            const response = await fetch(url);
-                            const blob = await response.blob();
-                            const blobUrl = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = blobUrl;
-                            link.download = lang === 'fr' ? 'cv-fr.pdf' : 'cv-en.pdf';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(blobUrl);
-                          } catch (err) {
-                            console.error("Download failed", err);
-                          }
-                        }}
+                        type="button"
+                        onClick={handleDownloadCv}
                         className="border border-cyan-500/30 bg-cyan-500/10 hover:border-cyan-400 hover:bg-cyan-400/20 text-cyan-400 transition-all px-4 py-2 flex items-center gap-2 cursor-pointer"
                       >
                         <FileDown size={16} />
@@ -333,7 +376,7 @@ function AppContent() {
                     </div>
                   </div>
 
-                  <motion.div layoutId="profile-pic" transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }} className="w-32 h-40 md:w-48 md:h-64 shrink-0 border border-white/20 bg-black flex items-center justify-center relative z-10 overflow-hidden self-center md:self-start">
+                  <motion.div layoutId="profile-pic" transition={{ duration: shouldReduceMotion ? 0.15 : 0.8, ease: [0.16, 1, 0.3, 1] }} className="w-32 h-40 md:w-48 md:h-64 shrink-0 border border-white/20 bg-black flex items-center justify-center relative z-10 overflow-hidden self-center md:self-start">
                     <User className="text-white/20 w-16 h-16 md:w-24 md:h-24 absolute z-0" />
                     <img 
                       src="/profile.png" 
@@ -343,7 +386,10 @@ function AppContent() {
                         e.currentTarget.style.display = 'none';
                       }}
                     />
-                    <div className="absolute inset-0 bg-[url('/src/assets/scanline-overlay.svg')] opacity-50 mix-blend-overlay pointer-events-none z-20"></div>
+                    <div
+                      className="absolute inset-0 opacity-50 mix-blend-overlay pointer-events-none z-20"
+                      style={{ backgroundImage: `url(${scanlineOverlay})` }}
+                    ></div>
                     <div className="absolute inset-0 bg-gradient-to-tr from-red-500/20 to-cyan-500/20 mix-blend-color pointer-events-none z-20"></div>
                   </motion.div>
                 </header>
@@ -363,10 +409,10 @@ function AppContent() {
                     {t.phases.map((phase, i) => (
                       <motion.div 
                         key={i} 
-                        initial={{ opacity: 0, y: 50, x: -20 }}
+                        initial={shouldReduceMotion ? { opacity: 1, y: 0, x: 0 } : { opacity: 0, y: 50, x: -20 }}
                         whileInView={{ opacity: 1, y: 0, x: 0 }}
                         viewport={{ once: true, margin: "-100px" }}
-                        transition={{ duration: 0.6, ease: "easeOut" }}
+                        transition={{ duration: shouldReduceMotion ? 0.2 : 0.6, ease: 'easeOut' }}
                         className="relative md:pl-16"
                       >
                         {/* Timeline Node */}
@@ -421,10 +467,10 @@ function AppContent() {
                       return (
                       <motion.div 
                         key={i} 
-                        initial={{ opacity: 0, scale: 0.9 }}
+                        initial={shouldReduceMotion ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9 }}
                         whileInView={{ opacity: 1, scale: 1 }}
                         viewport={{ once: true, margin: "-50px" }}
-                        transition={{ duration: 0.5, delay: i * 0.1 }}
+                        transition={{ duration: shouldReduceMotion ? 0.2 : 0.5, delay: shouldReduceMotion ? 0 : i * 0.08 }}
                         className="relative h-[380px] sm:h-[340px] lg:h-[320px] w-full group [perspective:2000px] [transform-style:preserve-3d]"
                       >
                         {/* Folder Back (Inside) */}
@@ -481,21 +527,16 @@ function AppContent() {
                   </div>
                   
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
-                    {[
-                      {n: 'C/C++', i: Cpu, lvl: 90}, {n: 'DOCKER', i: Server, lvl: 85}, 
-                      {n: 'RUST', i: Zap, lvl: 60}, {n: 'BASH', i: TerminalIcon, lvl: 80}, 
-                      {n: 'REACT', i: Box, lvl: 75}, {n: 'POSTGRES', i: Database, lvl: 70}, 
-                      {n: 'GO', i: Wifi, lvl: 65}, {n: 'ASM', i: Activity, lvl: 50}
-                    ].map((skill, i) => {
+                    {SKILLS.map((skill, i) => {
                       const Icon = skill.i;
                       
                       return (
                       <motion.div 
                         key={i} 
-                        initial={{ opacity: 0, y: 20 }}
+                        initial={shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        transition={{ duration: 0.4, delay: i * 0.05 }}
+                        transition={{ duration: shouldReduceMotion ? 0.2 : 0.4, delay: shouldReduceMotion ? 0 : i * 0.05 }}
                         className="bg-black/40 border border-white/10 p-6 flex flex-col items-center justify-center gap-4 hover:border-red-500/50 hover:bg-gradient-to-b hover:from-red-500/10 hover:to-transparent transition-all duration-300 rounded-lg group"
                       >
                         <div className="text-white/40 shrink-0 group-hover:text-red-400 transition-colors duration-300 group-hover:scale-110 transform">
@@ -510,7 +551,7 @@ function AppContent() {
                               initial={{ width: 0 }}
                               whileInView={{ width: `${skill.lvl}%` }}
                               viewport={{ once: true }}
-                              transition={{ duration: 1, delay: 0.2 + (i * 0.05), ease: "easeOut" }}
+                              transition={{ duration: shouldReduceMotion ? 0.2 : 1, delay: shouldReduceMotion ? 0 : 0.2 + (i * 0.05), ease: 'easeOut' }}
                               className="h-full bg-gradient-to-r from-cyan-500 to-red-500"
                             />
                           </div>

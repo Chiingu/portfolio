@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Terminal as TerminalIcon, X, ShieldAlert, Wifi, Activity, Cpu } from 'lucide-react';
+import { motion } from 'motion/react';
+import { X, ShieldAlert, Wifi, Activity, Cpu } from 'lucide-react';
+import scanlineOverlay from '../assets/scanline-overlay.svg';
 
 interface TerminalContactProps {
   onClose: () => void;
@@ -40,9 +41,9 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
   const [step, setStep] = useState<'name' | 'email' | 'message' | 'sending' | 'success' | 'error'>('name');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleLines, setVisibleLines] = useState(1);
   
   const [history, setHistory] = useState<{ id: number; type: 'system' | 'user'; text: string; isError?: boolean; speed?: number }[]>([
@@ -60,6 +61,17 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
       inputRef.current.focus();
     }
   }, [step, isTyping]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isSubmitting) {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isSubmitting, onClose]);
 
   useEffect(() => {
     if (bottomRef.current) {
@@ -94,8 +106,13 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
         setStep('message');
         setTimeout(() => addSystemMessage('INPUT DATA PAYLOAD (MESSAGE):'), 200);
       } else if (step === 'message') {
-        setMessage(val);
+        if (val.length < 8) {
+          setTimeout(() => addSystemMessage('ERR: PAYLOAD TOO SHORT. MINIMUM 8 CHARACTERS.', true), 200);
+          return;
+        }
+
         setStep('sending');
+        setIsSubmitting(true);
         setTimeout(() => addSystemMessage('ENCRYPTING PAYLOAD... TRANSMITTING...', false, 5), 200);
         
         try {
@@ -104,6 +121,8 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, email, message: val })
           });
+
+          const data = await response.json().catch(() => null);
           
           if (response.ok) {
             setTimeout(() => {
@@ -111,13 +130,16 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
               setStep('success');
             }, 1000);
           } else {
-            throw new Error('Failed to send');
+            throw new Error(data?.error ?? 'FAILED TO SEND');
           }
         } catch (error) {
+          const errorText = error instanceof Error ? error.message.toUpperCase() : 'TRANSMISSION BLOCKED';
           setTimeout(() => {
-            addSystemMessage('FATAL ERR: TRANSMISSION BLOCKED BY SYS FIREWALL.', true, 5);
+            addSystemMessage(`FATAL ERR: ${errorText}`, true, 5);
             setStep('error');
           }, 1000);
+        } finally {
+          setIsSubmitting(false);
         }
       }
     }
@@ -129,7 +151,11 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/95 sm:bg-black/90 sm:backdrop-blur-sm"
-      onClick={onClose}
+      onClick={() => {
+        if (!isSubmitting) {
+          onClose();
+        }
+      }}
     >
       <motion.div 
         initial={{ scale: 1.05, opacity: 0, filter: 'brightness(2) contrast(1.5)' }}
@@ -138,6 +164,9 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
         transition={{ duration: 0.2, ease: "easeOut" }}
         className={`w-full max-w-3xl bg-black border-2 ${step === 'error' ? 'border-red-500 sm:shadow-[0_0_30px_rgba(239,68,68,0.4)]' : 'border-cyan-500 sm:shadow-[0_0_30px_rgba(34,211,238,0.2)]'} flex flex-col relative`}
         onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="terminal-contact-title"
       >
         {/* ctOS Corner Accents */}
         <div className={`absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 ${step === 'error' ? 'border-red-500' : 'border-cyan-400'} z-50`}></div>
@@ -149,7 +178,7 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
         <div className={`flex items-center justify-between px-4 py-2 ${step === 'error' ? 'bg-red-500 text-black' : 'bg-cyan-500 text-black'} relative z-30 font-bold tracking-widest uppercase text-xs sm:text-sm`}>
           <div className="flex items-center gap-3">
             {step === 'error' ? <ShieldAlert size={16} className="animate-pulse" /> : <Activity size={16} />}
-            <span>SYS // ROOT_ACCESS_GRANTED</span>
+            <span id="terminal-contact-title">SYS // ROOT_ACCESS_GRANTED</span>
           </div>
           
           <div className="flex items-center gap-4">
@@ -158,7 +187,7 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
               <div className="w-1 h-3 bg-black animate-pulse" style={{ animationDelay: '0.1s' }}></div>
               <div className="w-1 h-3 bg-black animate-pulse" style={{ animationDelay: '0.2s' }}></div>
             </div>
-            <button onClick={onClose} className="hover:bg-black hover:text-white px-2 py-0.5 transition-colors flex items-center gap-1">
+            <button type="button" onClick={onClose} className="hover:bg-black hover:text-white px-2 py-0.5 transition-colors flex items-center gap-1 disabled:opacity-40" disabled={isSubmitting}>
               <span>[</span>
               <X size={14} />
               <span className="hidden sm:inline">DISCONNECT</span><span className="sm:hidden">EXIT</span> <span>]</span>
@@ -178,7 +207,7 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
         {/* Terminal Body */}
         <div 
           className="p-4 sm:p-6 h-[50vh] min-h-[300px] max-h-[450px] overflow-y-auto font-mono text-sm sm:text-base flex flex-col relative z-10 scrollbar-thin scrollbar-thumb-cyan-500/30 scrollbar-track-transparent"
-          onClick={() => { if (!isTyping) inputRef.current?.focus(); }}
+          onClick={() => { if (!isTyping && !isSubmitting) inputRef.current?.focus(); }}
         >
           {history.slice(0, visibleLines).map((line, i) => (
             <div 
@@ -210,7 +239,7 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
             </div>
           ))}
           
-          {step !== 'sending' && step !== 'success' && step !== 'error' && !isTyping && (
+          {step !== 'sending' && step !== 'success' && step !== 'error' && !isTyping && !isSubmitting && (
             <motion.div 
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
@@ -226,6 +255,8 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
                 className="flex-1 bg-transparent border-none outline-none text-white font-bold tracking-wider w-full placeholder-white/20 uppercase"
                 autoComplete="off"
                 spellCheck="false"
+                aria-label="Terminal input"
+                disabled={isSubmitting}
               />
               <motion.div 
                 animate={{ opacity: [1, 0, 1] }} 
@@ -234,11 +265,18 @@ export function TerminalContact({ onClose }: TerminalContactProps) {
               />
             </motion.div>
           )}
+
+          {isSubmitting && (
+            <div className="mt-2 text-xs text-cyan-400 tracking-widest animate-pulse">TRANSMISSION_IN_PROGRESS...</div>
+          )}
           <div ref={bottomRef} className="h-4" />
         </div>
         
         {/* ctOS Scanline / Grid Overlay */}
-        <div className="absolute inset-0 pointer-events-none bg-[url('/src/assets/scanline-overlay.svg')] opacity-30 mix-blend-overlay z-0 hidden sm:block"></div>
+        <div
+          className="absolute inset-0 pointer-events-none opacity-30 mix-blend-overlay z-0 hidden sm:block"
+          style={{ backgroundImage: `url(${scanlineOverlay})` }}
+        ></div>
         <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(0,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,255,0.03)_1px,transparent_1px)] bg-[size:20px_20px] z-0 hidden sm:block"></div>
         
         {/* Glitch Line Effect */}

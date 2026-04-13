@@ -1,8 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-mono: "Share Tech Mono", monospace;
+  --font-display: "Orbitron", sans-serif;
+  --color-ink: #030507;
+  --color-signal-red: #ef4444;
+  --color-signal-cyan: #22d3ee;
   --animate-scan: scan 2s linear infinite;
   --animate-glitch-1: glitch-1 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
   --animate-glitch-2: glitch-2 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite reverse;
@@ -32,8 +36,18 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-black text-white font-mono overflow-x-hidden antialiased;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(239, 68, 68, 0.1), transparent 45%),
+      radial-gradient(circle at 85% 100%, rgba(34, 211, 238, 0.08), transparent 42%),
+      var(--color-ink);
+    min-height: 100vh;
   }
 
   /* Global CRT Scanlines */
@@ -51,6 +65,16 @@
     pointer-events: none;
   }
 
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: 0.04em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-signal-cyan);
+    outline-offset: 2px;
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
   }
@@ -63,6 +87,19 @@
   
   ::selection {
     @apply bg-white text-black;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    body::after {
+      opacity: 0.22;
+    }
   }
 }
 

@@ -1,5 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 
+type NetworkNode = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  isTarget: boolean;
+  id: string;
+};
+
 export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolean }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -12,21 +21,27 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
     let width = window.innerWidth;
     let height = window.innerHeight;
     let animationFrameId: number;
-    let nodes: any[] = [];
+    let nodes: NetworkNode[] = [];
     let time = 0;
     let lastTime = performance.now();
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let prefersReducedMotion = motionQuery.matches;
 
     const initNetwork = () => {
       nodes = [];
-      const numNodes = Math.floor((width * height) / 15000);
+      const density = prefersReducedMotion ? 32000 : (width < 768 ? 26000 : 18000);
+      const minNodes = prefersReducedMotion ? 18 : 26;
+      const maxNodes = prefersReducedMotion ? 48 : 120;
+      const numNodes = Math.min(maxNodes, Math.max(minNodes, Math.floor((width * height) / density)));
+
       for (let i = 0; i < numNodes; i++) {
         nodes.push({
           x: Math.random() * width,
           y: Math.random() * height,
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: (Math.random() - 0.5) * 0.5,
+          vx: (Math.random() - 0.5) * (prefersReducedMotion ? 0.2 : 0.5),
+          vy: (Math.random() - 0.5) * (prefersReducedMotion ? 0.2 : 0.5),
           isTarget: Math.random() > 0.92,
-          id: `0x${Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase().padStart(4, '0')}`
+          id: `0x${Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase().padStart(4, '0')}`,
         });
       }
     };
@@ -35,8 +50,9 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
       width = window.innerWidth;
       height = window.innerHeight;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
       initNetwork();
     };
@@ -56,14 +72,27 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
       }
     };
 
+    const handleReducedMotionChange = () => {
+      prefersReducedMotion = motionQuery.matches;
+      resize();
+    };
+
     window.addEventListener('resize', handleResize);
     document.addEventListener('visibilitychange', handleVisibility);
+    motionQuery.addEventListener('change', handleReducedMotionChange);
     resize();
 
     const draw = () => {
       const now = performance.now();
       let dt = now - lastTime;
-      if (dt > 100) dt = 16;
+      const frameInterval = prefersReducedMotion ? 1000 / 18 : 1000 / 30;
+
+      if (dt < frameInterval) {
+        animationFrameId = requestAnimationFrame(draw);
+        return;
+      }
+
+      if (dt > 120) dt = 16;
       lastTime = now;
       time += dt;
 
@@ -72,7 +101,7 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
 
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
       ctx.lineWidth = 1;
-      const gridSize = 60;
+      const gridSize = prefersReducedMotion ? 80 : 60;
       const offset = (time * 0.04) % gridSize;
       
       ctx.beginPath();
@@ -97,14 +126,15 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
       }
 
       ctx.lineWidth = 1;
+      const maxDist = prefersReducedMotion ? 110 : 150;
+      const maxDistSq = maxDist * maxDist;
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const dx = nodes[i].x - nodes[j].x;
           const dy = nodes[i].y - nodes[j].y;
           const distSq = dx * dx + dy * dy;
-          const maxDist = 150;
           
-          if (distSq < maxDist * maxDist) {
+          if (distSq < maxDistSq) {
             const dist = Math.sqrt(distSq);
             const opacity = 1 - (dist / maxDist);
             ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.25})`;
@@ -124,20 +154,22 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
         }
       }
 
-      for (let i = 0; i < nodes.length; i++) {
-        const n = nodes[i];
-        if (n.isTarget) {
-          ctx.strokeStyle = '#ff003c';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(n.x - 10, n.y - 10, 20, 20);
-          
-          ctx.fillStyle = '#ff003c';
-          ctx.fillRect(n.x - 2, n.y - 2, 4, 4);
+      if (!prefersReducedMotion) {
+        ctx.font = '10px "Share Tech Mono", monospace';
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          if (n.isTarget) {
+            ctx.strokeStyle = '#ff003c';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(n.x - 10, n.y - 10, 20, 20);
 
-          ctx.font = '10px "Share Tech Mono", monospace';
-          ctx.fillText(`ID:${n.id}`, n.x + 15, n.y - 5);
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-          ctx.fillText(`[${Math.floor(n.x)},${Math.floor(n.y)}]`, n.x + 15, n.y + 7);
+            ctx.fillStyle = '#ff003c';
+            ctx.fillRect(n.x - 2, n.y - 2, 4, 4);
+
+            ctx.fillText(`ID:${n.id}`, n.x + 15, n.y - 5);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.fillText(`[${Math.floor(n.x)},${Math.floor(n.y)}]`, n.x + 15, n.y + 7);
+          }
         }
       }
 
@@ -149,6 +181,7 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
     return () => {
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('visibilitychange', handleVisibility);
+      motionQuery.removeEventListener('change', handleReducedMotionChange);
       clearTimeout(resizeTimeout);
       cancelAnimationFrame(animationFrameId);
     };

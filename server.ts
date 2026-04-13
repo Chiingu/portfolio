@@ -1,12 +1,33 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const cleanText = (value: unknown) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim().replace(/[\r\n]+/g, " ");
+};
+
+const escapeHtml = (value: string) => {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT ?? 3000);
 
-  app.use(express.json());
+  app.use(express.json({ limit: "32kb" }));
 
   // API routes FIRST
   app.get("/api/health", (req, res) => {
@@ -15,10 +36,20 @@ async function startServer() {
 
   app.post("/api/send-email", async (req, res) => {
     try {
-      const { name, email, message } = req.body;
+      const name = cleanText(req.body?.name).slice(0, 80);
+      const email = cleanText(req.body?.email).slice(0, 160).toLowerCase();
+      const message = cleanText(req.body?.message).slice(0, 3000);
       
       if (!name || !email || !message) {
         return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      if (!EMAIL_PATTERN.test(email)) {
+        return res.status(400).json({ error: "Invalid email format" });
+      }
+
+      if (message.length < 8) {
+        return res.status(400).json({ error: "Message is too short" });
       }
 
       const nodemailer = await import("nodemailer");
@@ -41,14 +72,15 @@ async function startServer() {
       });
 
       await transporter.sendMail({
-        from: `"${name}" <${email}>`,
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        replyTo: `"${name}" <${email}>`,
         to: process.env.SMTP_USER, // Send to yourself
         subject: `Portfolio Contact from ${name}`,
         text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
-        html: `<p><strong>Name:</strong> ${name}</p>
-               <p><strong>Email:</strong> ${email}</p>
+        html: `<p><strong>Name:</strong> ${escapeHtml(name)}</p>
+               <p><strong>Email:</strong> ${escapeHtml(email)}</p>
                <p><strong>Message:</strong></p>
-               <p>${message.replace(/\n/g, '<br>')}</p>`,
+               <p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`,
       });
 
       res.json({ success: true, message: "Email sent successfully" });

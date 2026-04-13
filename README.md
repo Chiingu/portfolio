@@ -1,20 +1,60 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Mourtada Portfolio
 
-# Run and deploy your AI Studio app
+Immersive portfolio website built with React, Tailwind v4, motion animations, and an Express endpoint for terminal-style contact messages.
 
-This contains everything you need to run your app locally.
+## Stack
 
-View your app in AI Studio: https://ai.studio/apps/f1f9c64f-1d84-4d3b-a2a9-91da1f77b83e
+- Frontend: React 19 + Vite + Tailwind CSS v4 + motion
+- Backend: Express + Nodemailer (optional SMTP)
+- Language: TypeScript
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
+## Development
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+
+```bash
+npm install
+```
+
+2. Create an environment file from [.env.example](.env.example) and configure SMTP values if you want real email delivery.
+
+3. Start the app (frontend + API via Express/Vite middleware):
+
+```bash
+npm run dev
+```
+
+4. Open:
+
+```text
+http://localhost:3000
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+## Type Check
+
+```bash
+npm run lint
+```
+
+## Email API
+
+The terminal contact modal posts to `/api/send-email`.
+
+- If `SMTP_USER` and `SMTP_PASS` are configured, emails are sent via Nodemailer.
+- If SMTP credentials are missing, the API simulates success for local development.
+
+Recommended environment variables:
+
+- `PORT`
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_SECURE`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM` (optional sender override)
