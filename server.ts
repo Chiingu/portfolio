@@ -7,11 +7,18 @@ dotenv.config();
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const cleanText = (value: unknown) => {
+const cleanSingleLineText = (value: unknown) => {
   if (typeof value !== "string") {
     return "";
   }
   return value.trim().replace(/[\r\n]+/g, " ");
+};
+
+const cleanMultilineText = (value: unknown) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim().replace(/\r/g, "");
 };
 
 const escapeHtml = (value: string) => {
@@ -36,9 +43,9 @@ async function startServer() {
 
   app.post("/api/send-email", async (req, res) => {
     try {
-      const name = cleanText(req.body?.name).slice(0, 80);
-      const email = cleanText(req.body?.email).slice(0, 160).toLowerCase();
-      const message = cleanText(req.body?.message).slice(0, 3000);
+      const name = cleanSingleLineText(req.body?.name).slice(0, 80);
+      const email = cleanSingleLineText(req.body?.email).slice(0, 160).toLowerCase();
+      const message = cleanMultilineText(req.body?.message).slice(0, 3000);
       
       if (!name || !email || !message) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -61,9 +68,11 @@ async function startServer() {
         return res.json({ success: true, message: "Email simulated (configure SMTP_USER and SMTP_PASS to send real emails)" });
       }
 
+      const smtpPort = Number(process.env.SMTP_PORT ?? 587);
+
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST || "smtp.gmail.com",
-        port: parseInt(process.env.SMTP_PORT || "587"),
+        port: Number.isFinite(smtpPort) ? smtpPort : 587,
         secure: process.env.SMTP_SECURE === "true",
         auth: {
           user: process.env.SMTP_USER,

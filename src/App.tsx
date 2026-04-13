@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { Suspense, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { User, Terminal as TerminalIcon, Cpu, Server, Box, Zap, Database, Wifi, Activity, Github, Linkedin, FileDown } from 'lucide-react';
 
@@ -9,7 +9,6 @@ import { NetworkBackground } from './components/NetworkBackground';
 import { MbLogo } from './components/MbLogo';
 import { Clock, NodeInfo, TerminalLogs, RightBarcode } from './components/HUD';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
-import { TerminalContact } from './components/TerminalContact';
 
 import scanlineOverlay from './assets/scanline-overlay.svg';
 import cornerTl from './assets/corner-tl.svg';
@@ -27,6 +26,12 @@ const SKILLS = [
   { n: 'GO', i: Wifi, lvl: 65 },
   { n: 'ASM', i: Activity, lvl: 50 },
 ] as const;
+
+const LOADING_SEGMENTS = Array.from({ length: 20 });
+
+const LazyTerminalContact = React.lazy(() =>
+  import('./components/TerminalContact').then((module) => ({ default: module.TerminalContact })),
+);
 
 function AppContent() {
   const { t, lang } = useContext(LanguageContext);
@@ -118,7 +123,7 @@ function AppContent() {
   }, [systemState, shouldReduceMotion]);
 
   return (
-    <div className="min-h-screen bg-transparent text-white font-mono relative overflow-hidden">
+    <div className="min-h-screen bg-transparent text-white font-mono relative overflow-hidden" aria-busy={systemState === 'verified'}>
       <div className="pointer-events-none absolute inset-0 z-[5] bg-[radial-gradient(circle_at_top_left,rgba(239,68,68,0.14),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.1),transparent_52%)]" />
       {hacked && (
         <div className="fixed inset-0 bg-red-600/40 z-[9999] pointer-events-none flex items-center justify-center mix-blend-color-burn animate-pulse">
@@ -146,7 +151,7 @@ function AppContent() {
       </AnimatePresence>
 
       <div className="absolute inset-0 flex items-center justify-center z-40">
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           
           {/* STATE: AUTH FLOW (IDLE & VERIFIED) */}
           {(systemState === 'idle' || systemState === 'verified') ? (
@@ -301,7 +306,7 @@ function AppContent() {
                       aria-valuemax={100}
                       aria-valuenow={progress}
                     >
-                      {[...Array(20)].map((_, i) => (
+                      {LOADING_SEGMENTS.map((_, i) => (
                         <div 
                           key={i} 
                           className={`h-full flex-1 ${i < (progress / 5) ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-white/10'}`}
@@ -329,12 +334,14 @@ function AppContent() {
               </div>
             </motion.div>
           ) : systemState === 'system' ? (
-            <motion.div 
+            <motion.main
               key="system"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="absolute inset-0 overflow-y-auto pt-20 pb-20 px-6 md:pt-32 md:px-16 z-30"
+              id="main-content"
             >
+
               <div className="max-w-7xl mx-auto space-y-24 md:space-y-32">
                 
                 {/* HEADER */}
@@ -352,11 +359,11 @@ function AppContent() {
 
                     {/* CONTACTS & CV */}
                     <div className="flex flex-wrap items-center gap-3">
-                      <a href="https://github.com/Chiingu" target="_blank" rel="noreferrer" className="border border-white/20 bg-black/50 hover:border-red-500/50 hover:bg-red-500/10 text-white/60 hover:text-red-400 transition-all px-3 py-2 flex items-center gap-2">
+                      <a href="https://github.com/Chiingu" target="_blank" rel="noreferrer noopener" className="border border-white/20 bg-black/50 hover:border-red-500/50 hover:bg-red-500/10 text-white/60 hover:text-red-400 transition-all px-3 py-2 flex items-center gap-2">
                         <Github size={16} />
                         <span className="text-[10px] tracking-widest hidden sm:block">{t.ui.github}</span>
                       </a>
-                      <a href="https://www.linkedin.com/in/mourtada-bouizakarne/" target="_blank" rel="noreferrer" className="border border-white/20 bg-black/50 hover:border-cyan-500/50 hover:bg-cyan-500/10 text-white/60 hover:text-cyan-400 transition-all px-3 py-2 flex items-center gap-2">
+                      <a href="https://www.linkedin.com/in/mourtada-bouizakarne/" target="_blank" rel="noreferrer noopener" className="border border-white/20 bg-black/50 hover:border-cyan-500/50 hover:bg-cyan-500/10 text-white/60 hover:text-cyan-400 transition-all px-3 py-2 flex items-center gap-2">
                         <Linkedin size={16} />
                         <span className="text-[10px] tracking-widest hidden sm:block">{t.ui.linkedin}</span>
                       </a>
@@ -381,6 +388,7 @@ function AppContent() {
                     <img 
                       src="/profile.png" 
                       alt="Profile" 
+                      decoding="async"
                       className="absolute inset-0 w-full h-full object-cover filter grayscale contrast-[1.4] brightness-75 mix-blend-luminosity opacity-90 transition-all duration-500 z-10"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
@@ -569,14 +577,16 @@ function AppContent() {
                 </div>
 
               </div>
-            </motion.div>
+            </motion.main>
           ) : null}
         </AnimatePresence>
 
         {/* TERMINAL CONTACT MODAL */}
         <AnimatePresence>
           {isContactOpen && (
-            <TerminalContact onClose={() => setIsContactOpen(false)} />
+            <Suspense fallback={<div className="fixed inset-0 z-[100] bg-black/85" />}>
+              <LazyTerminalContact onClose={() => setIsContactOpen(false)} />
+            </Suspense>
           )}
         </AnimatePresence>
       </div>
@@ -585,10 +595,28 @@ function AppContent() {
 }
 
 export default function App() {
-  const [lang, setLang] = useState<Language>('en');
+  const [lang, setLang] = useState<Language>(() => {
+    if (typeof window === 'undefined') {
+      return 'en';
+    }
+
+    const saved = window.localStorage.getItem('portfolio.lang');
+    return saved === 'en' || saved === 'fr' ? saved : 'en';
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem('portfolio.lang', lang);
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  const contextValue = useMemo(() => ({
+    lang,
+    setLang,
+    t: TRANSLATIONS[lang],
+  }), [lang]);
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t: TRANSLATIONS[lang] }}>
+    <LanguageContext.Provider value={contextValue}>
       <LanguageSwitcher />
       <AppContent />
     </LanguageContext.Provider>
