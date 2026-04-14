@@ -1,6 +1,7 @@
 import React, { Suspense, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { User, Terminal as TerminalIcon, Cpu, Server, Box, Zap, Database, Wifi, Activity, Github, Linkedin, FileDown } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 import { LanguageContext, Language } from './context/LanguageContext';
 import { TRANSLATIONS } from './i18n/translations';
@@ -619,6 +620,7 @@ export default function App() {
     <LanguageContext.Provider value={contextValue}>
       <LanguageSwitcher />
       <AppContent />
+      <Analytics />
     </LanguageContext.Provider>
   );
 }
