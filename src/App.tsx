@@ -359,15 +359,15 @@ function AppContent() {
 
                     {/* CONTACTS & CV */}
                     <div className="flex flex-wrap items-center gap-3">
-                      <a href="https://github.com/Chiingu" target="_blank" rel="noreferrer noopener" className="border border-white/20 bg-black/50 hover:border-red-500/50 hover:bg-red-500/10 text-white/60 hover:text-red-400 transition-all px-3 py-2 flex items-center gap-2">
+                      <a href="https://github.com/Chiingu" target="_blank" rel="noreferrer noopener" aria-label="GitHub profile" className="border border-white/20 bg-black/50 hover:border-red-500/50 hover:bg-red-500/10 text-white/60 hover:text-red-400 transition-all px-3 py-2 flex items-center gap-2">
                         <Github size={16} />
                         <span className="text-[10px] tracking-widest hidden sm:block">{t.ui.github}</span>
                       </a>
-                      <a href="https://www.linkedin.com/in/mourtada-bouizakarne/" target="_blank" rel="noreferrer noopener" className="border border-white/20 bg-black/50 hover:border-cyan-500/50 hover:bg-cyan-500/10 text-white/60 hover:text-cyan-400 transition-all px-3 py-2 flex items-center gap-2">
+                      <a href="https://www.linkedin.com/in/mourtada-bouizakarne/" target="_blank" rel="noreferrer noopener" aria-label="LinkedIn profile" className="border border-white/20 bg-black/50 hover:border-cyan-500/50 hover:bg-cyan-500/10 text-white/60 hover:text-cyan-400 transition-all px-3 py-2 flex items-center gap-2">
                         <Linkedin size={16} />
                         <span className="text-[10px] tracking-widest hidden sm:block">{t.ui.linkedin}</span>
                       </a>
-                      <button type="button" onClick={() => setIsContactOpen(true)} className="border border-white/20 bg-black/50 hover:border-red-500/50 hover:bg-red-500/10 text-white/60 hover:text-red-400 transition-all px-3 py-2 flex items-center gap-2">
+                      <button type="button" onClick={() => setIsContactOpen(true)} aria-label="Open contact terminal" className="border border-white/20 bg-black/50 hover:border-red-500/50 hover:bg-red-500/10 text-white/60 hover:text-red-400 transition-all px-3 py-2 flex items-center gap-2">
                         <TerminalIcon size={16} />
                         <span className="text-[10px] tracking-widest hidden sm:block">CONTACT_ME.exe</span>
                       </button>
@@ -375,6 +375,7 @@ function AppContent() {
                       <button 
                         type="button"
                         onClick={handleDownloadCv}
+                        aria-label="Download CV"
                         className="border border-cyan-500/30 bg-cyan-500/10 hover:border-cyan-400 hover:bg-cyan-400/20 text-cyan-400 transition-all px-4 py-2 flex items-center gap-2 cursor-pointer"
                       >
                         <FileDown size={16} />
