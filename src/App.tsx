@@ -29,9 +29,7 @@ const SKILLS = [
 
 const LOADING_SEGMENTS = Array.from({ length: 20 });
 
-const LazyTerminalContact = React.lazy(() =>
-  import('./components/TerminalContact').then((module) => ({ default: module.TerminalContact })),
-);
+
 
 function AppContent() {
   const { t, lang } = useContext(LanguageContext);
@@ -39,11 +37,12 @@ function AppContent() {
   // States: 'idle', 'verified', 'system'
   const [systemState, setSystemState] = useState<'idle' | 'verified' | 'system'>('idle');
   const [progress, setProgress] = useState(0);
-  const [isContactOpen, setIsContactOpen] = useState(false);
+
   const [hacked, setHacked] = useState(false);
 
   useEffect(() => {
     let keys = '';
+    let timeoutId: ReturnType<typeof setTimeout>;
     const handleKeyDown = (e: KeyboardEvent) => {
       // Prevent triggering when typing in the terminal or other inputs
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
@@ -51,12 +50,16 @@ function AppContent() {
       keys = (keys + e.key).slice(-10).toLowerCase();
       if (keys.includes('hack') || keys.includes('sudo')) {
         setHacked(true);
-        setTimeout(() => setHacked(false), 2500);
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => setHacked(false), 2500);
         keys = '';
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const handleLogin = () => {
@@ -367,10 +370,7 @@ function AppContent() {
                         <Linkedin size={16} />
                         <span className="text-[10px] tracking-widest hidden sm:block">{t.ui.linkedin}</span>
                       </a>
-                      <button type="button" onClick={() => setIsContactOpen(true)} aria-label="Open contact terminal" className="border border-white/20 bg-black/50 hover:border-red-500/50 hover:bg-red-500/10 text-white/60 hover:text-red-400 transition-all px-3 py-2 flex items-center gap-2">
-                        <TerminalIcon size={16} />
-                        <span className="text-[10px] tracking-widest hidden sm:block">CONTACT_ME.exe</span>
-                      </button>
+
                       
                       <button 
                         type="button"
@@ -582,14 +582,7 @@ function AppContent() {
           ) : null}
         </AnimatePresence>
 
-        {/* TERMINAL CONTACT MODAL */}
-        <AnimatePresence>
-          {isContactOpen && (
-            <Suspense fallback={<div className="fixed inset-0 z-[100] bg-black/85" />}>
-              <LazyTerminalContact onClose={() => setIsContactOpen(false)} />
-            </Suspense>
-          )}
-        </AnimatePresence>
+
       </div>
     </div>
   );

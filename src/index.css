@@ -108,12 +108,5 @@
     writing-mode: vertical-rl;
   }
 
-  .sys-panel {
-    @apply bg-black border border-white/20 p-6 relative overflow-hidden;
-  }
 
-  .sys-panel::before {
-    content: '';
-    @apply absolute top-0 left-0 w-full h-1 bg-white/20;
-  }
 }

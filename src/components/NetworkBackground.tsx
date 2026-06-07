@@ -3,6 +3,8 @@ import React, { useEffect, useRef } from 'react';
 type NetworkNode = {
   x: number;
   y: number;
+  ox: number;
+  oy: number;
   vx: number;
   vy: number;
   isTarget: boolean;
@@ -27,6 +29,8 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     let prefersReducedMotion = motionQuery.matches;
 
+    const mouse = { x: -1000, y: -1000, radius: 120 };
+
     const initNetwork = () => {
       nodes = [];
       const density = prefersReducedMotion ? 32000 : (width < 768 ? 26000 : 18000);
@@ -35,11 +39,15 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
       const numNodes = Math.min(maxNodes, Math.max(minNodes, Math.floor((width * height) / density)));
 
       for (let i = 0; i < numNodes; i++) {
+        const startX = Math.random() * width;
+        const startY = Math.random() * height;
         nodes.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          vx: (Math.random() - 0.5) * (prefersReducedMotion ? 0.2 : 0.5),
-          vy: (Math.random() - 0.5) * (prefersReducedMotion ? 0.2 : 0.5),
+          x: startX,
+          y: startY,
+          ox: startX,
+          oy: startY,
+          vx: (Math.random() - 0.5) * (prefersReducedMotion ? 0.3 : 1.5),
+          vy: (Math.random() - 0.5) * (prefersReducedMotion ? 0.3 : 1.5),
           isTarget: Math.random() > 0.92,
           id: `0x${Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase().padStart(4, '0')}`,
         });
@@ -77,9 +85,22 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
       resize();
     };
 
+    const handleMouseMove = (e: MouseEvent) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    };
+
+    const handleMouseOut = () => {
+      mouse.x = -1000;
+      mouse.y = -1000;
+    };
+
     window.addEventListener('resize', handleResize);
     document.addEventListener('visibilitychange', handleVisibility);
     motionQuery.addEventListener('change', handleReducedMotionChange);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseout', handleMouseOut);
+    
     resize();
 
     const draw = () => {
@@ -99,6 +120,7 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, width, height);
 
+      // 1. Moving Grid Background
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
       ctx.lineWidth = 1;
       const gridSize = prefersReducedMotion ? 80 : 60;
@@ -115,16 +137,50 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
       }
       ctx.stroke();
 
+      // 2. Update node physics
       for (let i = 0; i < nodes.length; i++) {
         let n = nodes[i];
-        n.x += n.vx;
-        n.y += n.vy;
-        if (n.x < 0) n.x = width;
-        if (n.x > width) n.x = 0;
-        if (n.y < 0) n.y = height;
-        if (n.y > height) n.y = 0;
+        n.ox += n.vx;
+        n.oy += n.vy;
+
+        // Wrap edges safely
+        if (n.ox < 0) { n.ox += width; n.x += width; }
+        if (n.ox > width) { n.ox -= width; n.x -= width; }
+        if (n.oy < 0) { n.oy += height; n.y += height; }
+        if (n.oy > height) { n.oy -= height; n.y -= height; }
+
+        // Interactive mouse pulling
+        if (!prefersReducedMotion) {
+          const dx = mouse.x - n.ox;
+          const dy = mouse.y - n.oy;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < mouse.radius) {
+            const force = (mouse.radius - dist) / mouse.radius;
+            const targetX = n.ox + dx * force * 0.4;
+            const targetY = n.oy + dy * force * 0.4;
+
+            n.x += (targetX - n.x) * 0.15;
+            n.y += (targetY - n.y) * 0.15;
+
+            // Draw hacking line from node to mouse
+            ctx.strokeStyle = `rgba(0, 240, 255, ${force * 0.45})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(n.x, n.y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.stroke();
+          } else {
+            n.x += (n.ox - n.x) * 0.1;
+            n.y += (n.oy - n.y) * 0.1;
+          }
+        } else {
+          n.x = n.ox;
+          n.y = n.oy;
+        }
       }
 
+      // 3. Draw Edges
       ctx.lineWidth = 1;
       const maxDist = prefersReducedMotion ? 110 : 150;
       const maxDistSq = maxDist * maxDist;
@@ -137,7 +193,7 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
           if (distSq < maxDistSq) {
             const dist = Math.sqrt(distSq);
             const opacity = 1 - (dist / maxDist);
-            ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.25})`;
+            ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.22})`;
             ctx.beginPath();
             ctx.moveTo(nodes[i].x, nodes[i].y);
             ctx.lineTo(nodes[j].x, nodes[j].y);
@@ -146,30 +202,49 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
         }
       }
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      // 4. Draw Nodes and Glitch Effects
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
-        if (!n.isTarget) {
-          ctx.fillRect(n.x - 1.5, n.y - 1.5, 3, 3);
-        }
-      }
+        
+        let dotX = n.x;
+        let dotY = n.y;
+        let dotW = 3;
+        let dotH = 3;
 
-      if (!prefersReducedMotion) {
-        ctx.font = '10px "Share Tech Mono", monospace';
-        for (let i = 0; i < nodes.length; i++) {
-          const n = nodes[i];
-          if (n.isTarget) {
-            ctx.strokeStyle = '#ff003c';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(n.x - 10, n.y - 10, 20, 20);
+        const isGlitching = !prefersReducedMotion && Math.random() < 0.015;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
 
-            ctx.fillStyle = '#ff003c';
-            ctx.fillRect(n.x - 2, n.y - 2, 4, 4);
-
-            ctx.fillText(`ID:${n.id}`, n.x + 15, n.y - 5);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.fillText(`[${Math.floor(n.x)},${Math.floor(n.y)}]`, n.x + 15, n.y + 7);
+        if (isGlitching) {
+          dotX += (Math.random() - 0.5) * 20;
+          if (Math.random() > 0.6) {
+            dotW = Math.random() * 30 + 5;
+            dotH = 2;
           }
+          const r = Math.random();
+          if (r > 0.66) ctx.fillStyle = '#00f0ff';
+          else if (r > 0.33) ctx.fillStyle = '#ff003c';
+        }
+
+        // Draw dot (standard nodes have a subtle flicker/chance to skip frame)
+        if (prefersReducedMotion || Math.random() > (isGlitching ? 0.1 : 0.05)) {
+          if (!n.isTarget) {
+            ctx.fillRect(dotX - dotW/2, dotY - dotH/2, dotW, dotH);
+          }
+        }
+
+        // Draw Target Highlight
+        if (n.isTarget) {
+          ctx.strokeStyle = '#ff003c';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(n.x - 10, n.y - 10, 20, 20);
+
+          ctx.fillStyle = '#ff003c';
+          ctx.fillRect(n.x - 2, n.y - 2, 4, 4);
+
+          ctx.font = '10px "Share Tech Mono", monospace';
+          ctx.fillText(`ID:${n.id}`, n.x + 15, n.y - 5);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+          ctx.fillText(`[${Math.floor(n.x)},${Math.floor(n.y)}]`, n.x + 15, n.y + 7);
         }
       }
 
@@ -182,6 +257,8 @@ export const NetworkBackground = React.memo(({ faded = false }: { faded?: boolea
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('visibilitychange', handleVisibility);
       motionQuery.removeEventListener('change', handleReducedMotionChange);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseout', handleMouseOut);
       clearTimeout(resizeTimeout);
       cancelAnimationFrame(animationFrameId);
     };
